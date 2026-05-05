@@ -221,6 +221,22 @@
       });
     }
 
+    async function openCustomerDropdown() {
+      customerDropdownOpen = true;
+      if (!customers.length) {
+        await loadCustomers();
+      }
+      renderCustomerSuggestions(customerInput.value);
+    }
+
+    async function openZoneDropdown() {
+      zoneDropdownOpen = true;
+      if (!zones.length) {
+        await loadZones();
+      }
+      renderZoneSuggestions(zoneInput.value);
+    }
+
     async function loadRecentCurrentMonthEntries() {
       const dateInput = document.getElementById("date");
       const selected = dateInput.value ? new Date(dateInput.value) : new Date();
@@ -332,21 +348,29 @@
       createPhoneRow();
 
       dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
-      customerInput.addEventListener("pointerdown", () => {
-        customerDropdownOpen = true;
-        renderCustomerSuggestions(customerInput.value);
-      });
+      customerInput.addEventListener("click", () => openCustomerDropdown());
+      customerInput.addEventListener("focus", () => openCustomerDropdown());
       customerInput.addEventListener("input", () => {
         if (customerDropdownOpen) renderCustomerSuggestions(customerInput.value);
       });
-      zoneInput.addEventListener("pointerdown", () => {
-        zoneDropdownOpen = true;
-        renderZoneSuggestions(zoneInput.value);
+      customerInput.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          openCustomerDropdown();
+        }
       });
+      zoneInput.addEventListener("click", () => openZoneDropdown());
+      zoneInput.addEventListener("focus", () => openZoneDropdown());
       zoneInput.addEventListener("input", () => {
         if (zoneDropdownOpen) renderZoneSuggestions(zoneInput.value);
       });
-      document.addEventListener("pointerdown", (event) => {
+      zoneInput.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          openZoneDropdown();
+        }
+      });
+      document.addEventListener("click", (event) => {
         const target = event.target;
         if (!customerField.contains(target)) {
           hideCustomerSuggestions();
