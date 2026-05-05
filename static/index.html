@@ -76,6 +76,7 @@
   <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-3 rounded-xl text-white shadow-lg"></div>
 
   <script>
+    // DOM Elements
     const phoneContainer = document.getElementById("phoneContainer");
     const addPhoneBtn = document.getElementById("addPhoneBtn");
     const form = document.getElementById("entryForm");
@@ -89,15 +90,28 @@
     const zoneToggleBtn = document.getElementById("zoneToggleBtn");
     const zoneSuggestions = document.getElementById("zoneSuggestions");
     const savingState = document.getElementById("savingState");
-    let customers = [];
-    let zones = [];
-
     const submitBtn = document.getElementById("submitBtn");
     const downloadWrap = document.getElementById("downloadWrap");
     const downloadLink = document.getElementById("downloadLink");
     const recentEntries = document.getElementById("recentEntries");
+    const dateInput = document.getElementById("date");
+    const themeToggle = document.getElementById("themeToggle");
+
+    // State variables
+    let customers = [];
+    let zones = [];
     let customerDropdownOpen = false;
     let zoneDropdownOpen = false;
+    let hideCustomerTimeout = null;
+    let hideZoneTimeout = null;
+    let typingTimer = null;
+
+    // Helper Functions
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
 
     function showToast(message, isError = false) {
       toast.textContent = message;
@@ -127,6 +141,7 @@
       phoneContainer.appendChild(row);
     }
 
+    // API Calls
     async function loadCustomers() {
       try {
         const response = await fetch("/api/customers");
@@ -155,79 +170,62 @@
       }
     }
 
-    function hideCustomerSuggestions(closeState = true) {
-      if (closeState) customerDropdownOpen = false;
-      customerSuggestions.classList.add("hidden");
-      customerSuggestions.innerHTML = "";
+    // Customer Dropdown Functions
+    function hideCustomerSuggestions() {
+      if (hideCustomerTimeout) clearTimeout(hideCustomerTimeout);
+      hideCustomerTimeout = setTimeout(() => {
+        customerDropdownOpen = false;
+        customerSuggestions.classList.add("hidden");
+        customerSuggestions.innerHTML = "";
+      }, 150);
+    }
+
+    function cancelHideCustomer() {
+      if (hideCustomerTimeout) {
+        clearTimeout(hideCustomerTimeout);
+        hideCustomerTimeout = null;
+      }
     }
 
     function renderCustomerSuggestions(query = "") {
       if (!customerDropdownOpen) return;
+      
       const needle = query.trim().toLowerCase();
       const filtered = customers
         .filter((name) => !needle || name.toLowerCase().includes(needle))
         .slice(0, 8);
 
       if (!filtered.length) {
-        // Keep dropdown state open so typing can repopulate suggestions.
-        hideCustomerSuggestions(false);
+        customerSuggestions.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">No matching customers</div>';
+        customerSuggestions.classList.remove("hidden");
         return;
       }
 
       customerSuggestions.innerHTML = filtered
         .map(
           (name) =>
-            `<button type="button" class="customer-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700">${name}</button>`
+            `<button type="button" class="customer-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">${escapeHtml(name)}</button>`
         )
         .join("");
       customerSuggestions.classList.remove("hidden");
 
       customerSuggestions.querySelectorAll(".customer-option").forEach((btn) => {
-        btn.addEventListener("pointerdown", (event) => {
+        btn.addEventListener("mousedown", (event) => {
           event.preventDefault();
+          event.stopPropagation();
           customerInput.value = btn.textContent;
           hideCustomerSuggestions();
+          customerInput.dispatchEvent(new Event('input', { bubbles: true }));
+          customerInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
-      });
-    }
-
-    function hideZoneSuggestions(closeState = true) {
-      if (closeState) zoneDropdownOpen = false;
-      zoneSuggestions.classList.add("hidden");
-      zoneSuggestions.innerHTML = "";
-    }
-
-    function renderZoneSuggestions(query = "") {
-      if (!zoneDropdownOpen) return;
-      const needle = query.trim().toLowerCase();
-      const filtered = zones
-        .filter((name) => !needle || name.toLowerCase().includes(needle))
-        .slice(0, 8);
-
-      if (!filtered.length) {
-        // Keep dropdown state open so typing can repopulate suggestions.
-        hideZoneSuggestions(false);
-        return;
-      }
-
-      zoneSuggestions.innerHTML = filtered
-        .map(
-          (name) =>
-            `<button type="button" class="zone-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700">${name}</button>`
-        )
-        .join("");
-      zoneSuggestions.classList.remove("hidden");
-
-      zoneSuggestions.querySelectorAll(".zone-option").forEach((btn) => {
-        btn.addEventListener("pointerdown", (event) => {
-          event.preventDefault();
-          zoneInput.value = btn.textContent;
-          hideZoneSuggestions();
-        });
+        
+        btn.addEventListener("mouseenter", () => cancelHideCustomer());
+        btn.addEventListener("mouseleave", () => hideCustomerSuggestions());
       });
     }
 
     async function openCustomerDropdown() {
+      cancelHideCustomer();
       customerDropdownOpen = true;
       if (!customers.length) {
         await loadCustomers();
@@ -235,7 +233,62 @@
       renderCustomerSuggestions(customerInput.value);
     }
 
+    // Zone Dropdown Functions
+    function hideZoneSuggestions() {
+      if (hideZoneTimeout) clearTimeout(hideZoneTimeout);
+      hideZoneTimeout = setTimeout(() => {
+        zoneDropdownOpen = false;
+        zoneSuggestions.classList.add("hidden");
+        zoneSuggestions.innerHTML = "";
+      }, 150);
+    }
+
+    function cancelHideZone() {
+      if (hideZoneTimeout) {
+        clearTimeout(hideZoneTimeout);
+        hideZoneTimeout = null;
+      }
+    }
+
+    function renderZoneSuggestions(query = "") {
+      if (!zoneDropdownOpen) return;
+      
+      const needle = query.trim().toLowerCase();
+      const filtered = zones
+        .filter((name) => !needle || name.toLowerCase().includes(needle))
+        .slice(0, 8);
+
+      if (!filtered.length) {
+        zoneSuggestions.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">No matching zones</div>';
+        zoneSuggestions.classList.remove("hidden");
+        return;
+      }
+
+      zoneSuggestions.innerHTML = filtered
+        .map(
+          (name) =>
+            `<button type="button" class="zone-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">${escapeHtml(name)}</button>`
+        )
+        .join("");
+      zoneSuggestions.classList.remove("hidden");
+
+      zoneSuggestions.querySelectorAll(".zone-option").forEach((btn) => {
+        btn.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          zoneInput.value = btn.textContent;
+          hideZoneSuggestions();
+          zoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+          zoneInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        
+        btn.addEventListener("mouseenter", () => cancelHideZone());
+        btn.addEventListener("mouseleave", () => hideZoneSuggestions());
+      });
+    }
+
     async function openZoneDropdown() {
+      cancelHideZone();
       zoneDropdownOpen = true;
       if (!zones.length) {
         await loadZones();
@@ -243,8 +296,8 @@
       renderZoneSuggestions(zoneInput.value);
     }
 
+    // Recent Entries
     async function loadRecentCurrentMonthEntries() {
-      const dateInput = document.getElementById("date");
       const selected = dateInput.value ? new Date(dateInput.value) : new Date();
       const monthName = selected.toLocaleString("en-US", { month: "long" });
       const year = selected.getFullYear();
@@ -266,10 +319,10 @@
 
       recentEntries.innerHTML = entries.map((entry) => `
         <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-          <div><strong>${entry.date}</strong> - ${entry.customer_name}</div>
-          <div>Zone: ${entry.zone || "-"}</div>
+          <div><strong>${escapeHtml(entry.date)}</strong> - ${escapeHtml(entry.customer_name)}</div>
+          <div>Zone: ${escapeHtml(entry.zone || "-")}</div>
           <div>Quantity: ${entry.quantity}</div>
-          <div>Phones: ${entry.phone_numbers || "-"}</div>
+          <div>Phones: ${escapeHtml(entry.phone_numbers || "-")}</div>
         </div>
       `).join("");
     }
@@ -287,22 +340,12 @@
       submitBtn.textContent = loading ? "Saving..." : "Save Entry";
     }
 
-    addPhoneBtn.addEventListener("click", () => createPhoneRow());
-
-    const themeToggle = document.getElementById("themeToggle");
-
-    themeToggle.addEventListener("change", () => {
-      const html = document.documentElement;
-      const useDark = themeToggle.checked;
-      html.classList.toggle("dark", useDark);
-      localStorage.setItem("theme", useDark ? "dark" : "light");
-    });
-
+    // Form Submission
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const date = document.getElementById("date").value;
-      const customer_name = document.getElementById("customer_name").value.trim();
-      const zone = document.getElementById("zone").value.trim();
+      const date = dateInput.value;
+      const customer_name = customerInput.value.trim();
+      const zone = zoneInput.value.trim();
       const quantity = parseInt(document.getElementById("quantity").value, 10);
       const phone_numbers = Array.from(document.querySelectorAll(".phone-input"))
         .map((input) => input.value.trim())
@@ -338,10 +381,135 @@
       }
     });
 
+    // Phone numbers
+    addPhoneBtn.addEventListener("click", () => createPhoneRow());
+
+    // Theme toggle
+    themeToggle.addEventListener("change", () => {
+      const html = document.documentElement;
+      const useDark = themeToggle.checked;
+      html.classList.toggle("dark", useDark);
+      localStorage.setItem("theme", useDark ? "dark" : "light");
+    });
+
+    // Event Listeners for Customer Field
+    customerInput.addEventListener("focus", () => {
+      cancelHideCustomer();
+      openCustomerDropdown();
+    });
+    
+    customerInput.addEventListener("click", (event) => {
+      event.stopPropagation();
+      cancelHideCustomer();
+      if (!customerDropdownOpen) {
+        openCustomerDropdown();
+      }
+    });
+    
+    customerInput.addEventListener("input", () => {
+      if (typingTimer) clearTimeout(typingTimer);
+      if (customerDropdownOpen) {
+        typingTimer = setTimeout(() => {
+          renderCustomerSuggestions(customerInput.value);
+        }, 100);
+      }
+    });
+    
+    customerInput.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        openCustomerDropdown();
+      } else if (event.key === "Escape" && customerDropdownOpen) {
+        hideCustomerSuggestions();
+      }
+    });
+
+    customerToggleBtn.addEventListener("mousedown", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (customerDropdownOpen) {
+        hideCustomerSuggestions();
+      } else {
+        await openCustomerDropdown();
+      }
+    });
+
+    // Event Listeners for Zone Field
+    zoneInput.addEventListener("focus", () => {
+      cancelHideZone();
+      openZoneDropdown();
+    });
+    
+    zoneInput.addEventListener("click", (event) => {
+      event.stopPropagation();
+      cancelHideZone();
+      if (!zoneDropdownOpen) {
+        openZoneDropdown();
+      }
+    });
+    
+    zoneInput.addEventListener("input", () => {
+      if (typingTimer) clearTimeout(typingTimer);
+      if (zoneDropdownOpen) {
+        typingTimer = setTimeout(() => {
+          renderZoneSuggestions(zoneInput.value);
+        }, 100);
+      }
+    });
+    
+    zoneInput.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        openZoneDropdown();
+      } else if (event.key === "Escape" && zoneDropdownOpen) {
+        hideZoneSuggestions();
+      }
+    });
+
+    zoneToggleBtn.addEventListener("mousedown", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (zoneDropdownOpen) {
+        hideZoneSuggestions();
+      } else {
+        await openZoneDropdown();
+      }
+    });
+
+    // Global click handler to close dropdowns
+    document.addEventListener("mousedown", (event) => {
+      const target = event.target;
+      
+      // Customer dropdown
+      if (!customerField.contains(target)) {
+        hideCustomerSuggestions();
+      } else {
+        cancelHideCustomer();
+      }
+      
+      // Zone dropdown
+      if (!zoneField.contains(target)) {
+        hideZoneSuggestions();
+      } else {
+        cancelHideZone();
+      }
+    });
+
+    // Prevent scroll from closing dropdowns
+    customerSuggestions.addEventListener("wheel", (e) => {
+      e.stopPropagation();
+    });
+    
+    zoneSuggestions.addEventListener("wheel", (e) => {
+      e.stopPropagation();
+    });
+
+    // Initialize on page load
     window.addEventListener("DOMContentLoaded", async () => {
-      const dateInput = document.getElementById("date");
+      // Set default date
       dateInput.value = new Date().toISOString().split("T")[0];
 
+      // Load theme preference
       const savedTheme = localStorage.getItem("theme");
       if (savedTheme === "dark") {
         document.documentElement.classList.add("dark");
@@ -350,57 +518,14 @@
         themeToggle.checked = false;
       }
 
+      // Load data
       await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
+      
+      // Create initial phone row
       createPhoneRow();
 
+      // Date change listener
       dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
-      customerInput.addEventListener("click", () => openCustomerDropdown());
-      customerInput.addEventListener("input", () => {
-        if (customerDropdownOpen) renderCustomerSuggestions(customerInput.value);
-      });
-      customerInput.addEventListener("keydown", (event) => {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          openCustomerDropdown();
-        }
-      });
-      zoneInput.addEventListener("click", () => openZoneDropdown());
-      zoneInput.addEventListener("input", () => {
-        if (zoneDropdownOpen) renderZoneSuggestions(zoneInput.value);
-      });
-      zoneInput.addEventListener("keydown", (event) => {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          openZoneDropdown();
-        }
-      });
-      customerToggleBtn.addEventListener("pointerdown", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (customerDropdownOpen) {
-          hideCustomerSuggestions();
-        } else {
-          await openCustomerDropdown();
-        }
-      });
-      zoneToggleBtn.addEventListener("pointerdown", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (zoneDropdownOpen) {
-          hideZoneSuggestions();
-        } else {
-          await openZoneDropdown();
-        }
-      });
-      document.addEventListener("pointerdown", (event) => {
-        const target = event.target;
-        if (!customerField.contains(target)) {
-          hideCustomerSuggestions();
-        }
-        if (!zoneField.contains(target)) {
-          hideZoneSuggestions();
-        }
-      });
     });
   </script>
 </body>
