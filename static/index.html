@@ -62,8 +62,8 @@
       </form>
 
       <div id="savingState" class="hidden mt-3 text-sm text-indigo-600 dark:text-indigo-300">Saving entry...</div>
-      <div id="downloadWrap" class="hidden mt-3">
-        <a id="downloadLink" href="#" class="text-sm text-blue-600 dark:text-blue-300 underline">Download current month's Excel file</a>
+      <div id="downloadWrap" class="mt-3">
+        <a id="downloadLink" href="#" class="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Download selected month's file</a>
       </div>
     </div>
 
@@ -334,6 +334,12 @@
       return `${month}_${year}`;
     }
 
+    function updateDownloadLink(dateValue) {
+      if (!dateValue) return;
+      const slug = currentMonthSlug(dateValue);
+      downloadLink.href = `/api/download/${slug}`;
+    }
+
     function setLoading(loading) {
       savingState.classList.toggle("hidden", !loading);
       submitBtn.disabled = loading;
@@ -369,9 +375,7 @@
         }
 
         showToast("Entry saved successfully");
-        const slug = currentMonthSlug(date);
-        downloadLink.href = `/api/download/${slug}`;
-        downloadWrap.classList.remove("hidden");
+        updateDownloadLink(date);
 
         await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
       } catch (error) {
@@ -525,7 +529,13 @@
       createPhoneRow();
 
       // Date change listener
-      dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
+      dateInput.addEventListener("change", () => {
+        updateDownloadLink(dateInput.value);
+        loadRecentCurrentMonthEntries();
+      });
+
+      // Initialize month download link
+      updateDownloadLink(dateInput.value);
     });
   </script>
 </body>
