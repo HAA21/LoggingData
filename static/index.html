@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Data Logger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+    };
+  </script>
+</head>
+<body class="bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen">
+  <div class="max-w-2xl mx-auto px-4 py-6">
+    <div class="relative mb-4">
+      <h1 class="text-2xl font-bold text-center">Customer Logger</h1>
+      <label for="themeToggle" class="absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center cursor-pointer">
+        <span class="sr-only">Toggle theme</span>
+        <input id="themeToggle" type="checkbox" class="peer sr-only" />
+        <span class="relative h-6 w-11 rounded-full bg-slate-300 dark:bg-slate-600 transition-colors peer-checked:bg-indigo-600">
+          <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-5"></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow p-4 sm:p-6">
+      <form id="entryForm" class="space-y-4">
+        <div>
+          <label for="date" class="block text-sm font-medium mb-1">Date *</label>
+          <input id="date" name="date" type="date" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+        </div>
+
+        <div class="relative">
+          <label for="customer_name" class="block text-sm font-medium mb-1">Customer Name *</label>
+          <input id="customer_name" name="customer_name" list="customerList" autocomplete="off" required placeholder="Type or choose a customer" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+          <datalist id="customerList"></datalist>
+          <div id="customerSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
+        </div>
+
+        <div class="relative">
+          <label for="zone" class="block text-sm font-medium mb-1">Zone *</label>
+          <input id="zone" name="zone" list="zoneList" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+          <datalist id="zoneList"></datalist>
+          <div id="zoneSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
+        </div>
+
+        <div>
+          <label for="quantity" class="block text-sm font-medium mb-1">Quantity *</label>
+          <input id="quantity" name="quantity" type="number" min="0" step="1" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium">Phone Numbers</label>
+            <button type="button" id="addPhoneBtn" class="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white">+ Add Phone</button>
+          </div>
+          <div id="phoneContainer" class="space-y-2"></div>
+        </div>
+
+        <button id="submitBtn" type="submit" class="w-full rounded-lg bg-emerald-600 text-white py-2.5 font-medium">Save Entry</button>
+      </form>
+
+      <div id="savingState" class="hidden mt-3 text-sm text-indigo-600 dark:text-indigo-300">Saving entry...</div>
+      <div id="downloadWrap" class="hidden mt-3">
+        <a id="downloadLink" href="#" class="text-sm text-blue-600 dark:text-blue-300 underline">Download current month's Excel file</a>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow p-4 sm:p-6 mt-6">
+      <h2 class="text-lg font-semibold mb-3">Last 5 Entries (Current Month)</h2>
+      <div id="recentEntries" class="space-y-2 text-sm text-slate-700 dark:text-slate-200"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-3 rounded-xl text-white shadow-lg"></div>
+
+  <script>
+    const phoneContainer = document.getElementById("phoneContainer");
+    const addPhoneBtn = document.getElementById("addPhoneBtn");
+    const form = document.getElementById("entryForm");
+    const toast = document.getElementById("toast");
+    const customerList = document.getElementById("customerList");
+    const customerInput = document.getElementById("customer_name");
+    const customerSuggestions = document.getElementById("customerSuggestions");
+    const zoneList = document.getElementById("zoneList");
+    const zoneInput = document.getElementById("zone");
+    const zoneSuggestions = document.getElementById("zoneSuggestions");
+    const savingState = document.getElementById("savingState");
+    let customers = [];
+    let zones = [];
+
+    const submitBtn = document.getElementById("submitBtn");
+    const downloadWrap = document.getElementById("downloadWrap");
+    const downloadLink = document.getElementById("downloadLink");
+    const recentEntries = document.getElementById("recentEntries");
+    let customerDropdownOpen = false;
+    let zoneDropdownOpen = false;
+
+    function showToast(message, isError = false) {
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 right-4 px-4 py-3 rounded-xl text-white shadow-lg ${isError ? "bg-red-600" : "bg-emerald-600"}`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2600);
+    }
+
+    function createPhoneRow(value = "") {
+      const row = document.createElement("div");
+      row.className = "flex gap-2";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Phone number";
+      input.value = value;
+      input.className = "phone-input flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "Remove";
+      removeBtn.className = "px-3 py-2 rounded-lg bg-rose-600 text-white text-sm";
+      removeBtn.addEventListener("click", () => row.remove());
+
+      row.appendChild(input);
+      row.appendChild(removeBtn);
+      phoneContainer.appendChild(row);
+    }
+
+    async function loadCustomers() {
+      try {
+        const response = await fetch("/api/customers");
+        if (!response.ok) throw new Error("Failed to load customers");
+        const data = await response.json();
+        customers = data.customers || [];
+        customerList.innerHTML = "";
+        customers.forEach((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          customerList.appendChild(opt);
+        });
+        if (customerDropdownOpen) {
+          renderCustomerSuggestions(customerInput.value);
+        }
+      } catch (error) {
+        showToast("Could not load customers", true);
+      }
+    }
+
+    async function loadZones() {
+      try {
+        const response = await fetch("/api/zones");
+        if (!response.ok) throw new Error("Failed to load zones");
+        const data = await response.json();
+        zones = data.zones || [];
+        zoneList.innerHTML = "";
+        zones.forEach((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          zoneList.appendChild(opt);
+        });
+        if (zoneDropdownOpen) {
+          renderZoneSuggestions(zoneInput.value);
+        }
+      } catch (error) {
+        showToast("Could not load zones", true);
+      }
+    }
+
+    function hideCustomerSuggestions() {
+      customerDropdownOpen = false;
+      customerSuggestions.classList.add("hidden");
+      customerSuggestions.innerHTML = "";
+    }
+
+    function renderCustomerSuggestions(query = "") {
+      if (!customerDropdownOpen) return;
+      const needle = query.trim().toLowerCase();
+      const filtered = customers
+        .filter((name) => !needle || name.toLowerCase().includes(needle))
+        .slice(0, 8);
+
+      if (!filtered.length) {
+        hideCustomerSuggestions();
+        return;
+      }
+
+      customerSuggestions.innerHTML = filtered
+        .map(
+          (name) =>
+            `<button type="button" class="customer-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700">${name}</button>`
+        )
+        .join("");
+      customerSuggestions.classList.remove("hidden");
+
+      customerSuggestions.querySelectorAll(".customer-option").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          customerInput.value = btn.textContent;
+          hideCustomerSuggestions();
+        });
+      });
+    }
+
+    function hideZoneSuggestions() {
+      zoneDropdownOpen = false;
+      zoneSuggestions.classList.add("hidden");
+      zoneSuggestions.innerHTML = "";
+    }
+
+    function renderZoneSuggestions(query = "") {
+      if (!zoneDropdownOpen) return;
+      const needle = query.trim().toLowerCase();
+      const filtered = zones
+        .filter((name) => !needle || name.toLowerCase().includes(needle))
+        .slice(0, 8);
+
+      if (!filtered.length) {
+        hideZoneSuggestions();
+        return;
+      }
+
+      zoneSuggestions.innerHTML = filtered
+        .map(
+          (name) =>
+            `<button type="button" class="zone-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700">${name}</button>`
+        )
+        .join("");
+      zoneSuggestions.classList.remove("hidden");
+
+      zoneSuggestions.querySelectorAll(".zone-option").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          zoneInput.value = btn.textContent;
+          hideZoneSuggestions();
+        });
+      });
+    }
+
+    async function loadRecentCurrentMonthEntries() {
+      const dateInput = document.getElementById("date");
+      const selected = dateInput.value ? new Date(dateInput.value) : new Date();
+      const monthName = selected.toLocaleString("en-US", { month: "long" });
+      const year = selected.getFullYear();
+      try {
+        const response = await fetch(`/api/entries/recent?month=${encodeURIComponent(monthName)}&year=${year}`);
+        if (!response.ok) throw new Error("Failed recent entries");
+        const data = await response.json();
+        renderRecentEntries(data.entries || []);
+      } catch (error) {
+        recentEntries.innerHTML = '<p class="text-rose-500">Could not load recent entries.</p>';
+      }
+    }
+
+    function renderRecentEntries(entries) {
+      if (!entries.length) {
+        recentEntries.innerHTML = '<p class="text-slate-500">No entries for this month yet.</p>';
+        return;
+      }
+
+      recentEntries.innerHTML = entries.map((entry) => `
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <div><strong>${entry.date}</strong> - ${entry.customer_name}</div>
+          <div>Zone: ${entry.zone || "-"}</div>
+          <div>Quantity: ${entry.quantity}</div>
+          <div>Phones: ${entry.phone_numbers || "-"}</div>
+        </div>
+      `).join("");
+    }
+
+    function currentMonthSlug(dateValue) {
+      const d = new Date(dateValue);
+      const month = d.toLocaleString("en-US", { month: "long" }).toLowerCase();
+      const year = d.getFullYear();
+      return `${month}_${year}`;
+    }
+
+    function setLoading(loading) {
+      savingState.classList.toggle("hidden", !loading);
+      submitBtn.disabled = loading;
+      submitBtn.textContent = loading ? "Saving..." : "Save Entry";
+    }
+
+    addPhoneBtn.addEventListener("click", () => createPhoneRow());
+
+    const themeToggle = document.getElementById("themeToggle");
+
+    themeToggle.addEventListener("change", () => {
+      const html = document.documentElement;
+      const useDark = themeToggle.checked;
+      html.classList.toggle("dark", useDark);
+      localStorage.setItem("theme", useDark ? "dark" : "light");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const date = document.getElementById("date").value;
+      const customer_name = document.getElementById("customer_name").value.trim();
+      const zone = document.getElementById("zone").value.trim();
+      const quantity = parseInt(document.getElementById("quantity").value, 10);
+      const phone_numbers = Array.from(document.querySelectorAll(".phone-input"))
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+
+      if (!date || !customer_name || !zone || Number.isNaN(quantity)) {
+        showToast("Please fill all required fields", true);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await fetch("/api/entries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, customer_name, zone, quantity, phone_numbers }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Failed to save");
+        }
+
+        showToast("Entry saved successfully");
+        const slug = currentMonthSlug(date);
+        downloadLink.href = `/api/download/${slug}`;
+        downloadWrap.classList.remove("hidden");
+
+        await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
+      } catch (error) {
+        showToast(error.message || "Could not save entry", true);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      const dateInput = document.getElementById("date");
+      dateInput.value = new Date().toISOString().split("T")[0];
+
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme === "dark") {
+        document.documentElement.classList.add("dark");
+        themeToggle.checked = true;
+      } else {
+        themeToggle.checked = false;
+      }
+
+      await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
+      createPhoneRow();
+
+      dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
+      customerInput.addEventListener("click", () => {
+        customerDropdownOpen = true;
+        renderCustomerSuggestions(customerInput.value);
+      });
+      customerInput.addEventListener("input", () => {
+        if (customerDropdownOpen) renderCustomerSuggestions(customerInput.value);
+      });
+      customerInput.addEventListener("blur", () => {
+        // delay lets click handlers on suggestion buttons fire first
+        setTimeout(hideCustomerSuggestions, 120);
+      });
+      zoneInput.addEventListener("click", () => {
+        zoneDropdownOpen = true;
+        renderZoneSuggestions(zoneInput.value);
+      });
+      zoneInput.addEventListener("input", () => {
+        if (zoneDropdownOpen) renderZoneSuggestions(zoneInput.value);
+      });
+      zoneInput.addEventListener("blur", () => {
+        // delay lets click handlers on suggestion buttons fire first
+        setTimeout(hideZoneSuggestions, 120);
+      });
+    });
+  </script>
+</body>
+</html>
