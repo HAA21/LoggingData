@@ -31,17 +31,15 @@
           <input id="date" name="date" type="date" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
         </div>
 
-        <div class="relative">
+        <div id="customerField" class="relative">
           <label for="customer_name" class="block text-sm font-medium mb-1">Customer Name *</label>
-          <input id="customer_name" name="customer_name" list="customerList" autocomplete="off" required placeholder="Type or choose a customer" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
-          <datalist id="customerList"></datalist>
+          <input id="customer_name" name="customer_name" autocomplete="off" required placeholder="Type or choose a customer" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
           <div id="customerSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
         </div>
 
-        <div class="relative">
+        <div id="zoneField" class="relative">
           <label for="zone" class="block text-sm font-medium mb-1">Zone *</label>
-          <input id="zone" name="zone" list="zoneList" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
-          <datalist id="zoneList"></datalist>
+          <input id="zone" name="zone" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
           <div id="zoneSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
         </div>
 
@@ -80,10 +78,10 @@
     const addPhoneBtn = document.getElementById("addPhoneBtn");
     const form = document.getElementById("entryForm");
     const toast = document.getElementById("toast");
-    const customerList = document.getElementById("customerList");
+    const customerField = document.getElementById("customerField");
     const customerInput = document.getElementById("customer_name");
     const customerSuggestions = document.getElementById("customerSuggestions");
-    const zoneList = document.getElementById("zoneList");
+    const zoneField = document.getElementById("zoneField");
     const zoneInput = document.getElementById("zone");
     const zoneSuggestions = document.getElementById("zoneSuggestions");
     const savingState = document.getElementById("savingState");
@@ -131,12 +129,6 @@
         if (!response.ok) throw new Error("Failed to load customers");
         const data = await response.json();
         customers = data.customers || [];
-        customerList.innerHTML = "";
-        customers.forEach((name) => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          customerList.appendChild(opt);
-        });
         if (customerDropdownOpen) {
           renderCustomerSuggestions(customerInput.value);
         }
@@ -151,12 +143,6 @@
         if (!response.ok) throw new Error("Failed to load zones");
         const data = await response.json();
         zones = data.zones || [];
-        zoneList.innerHTML = "";
-        zones.forEach((name) => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          zoneList.appendChild(opt);
-        });
         if (zoneDropdownOpen) {
           renderZoneSuggestions(zoneInput.value);
         }
@@ -344,27 +330,28 @@
       createPhoneRow();
 
       dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
-      customerInput.addEventListener("click", () => {
+      customerInput.addEventListener("pointerdown", () => {
         customerDropdownOpen = true;
         renderCustomerSuggestions(customerInput.value);
       });
       customerInput.addEventListener("input", () => {
         if (customerDropdownOpen) renderCustomerSuggestions(customerInput.value);
       });
-      customerInput.addEventListener("blur", () => {
-        // delay lets click handlers on suggestion buttons fire first
-        setTimeout(hideCustomerSuggestions, 120);
-      });
-      zoneInput.addEventListener("click", () => {
+      zoneInput.addEventListener("pointerdown", () => {
         zoneDropdownOpen = true;
         renderZoneSuggestions(zoneInput.value);
       });
       zoneInput.addEventListener("input", () => {
         if (zoneDropdownOpen) renderZoneSuggestions(zoneInput.value);
       });
-      zoneInput.addEventListener("blur", () => {
-        // delay lets click handlers on suggestion buttons fire first
-        setTimeout(hideZoneSuggestions, 120);
+      document.addEventListener("pointerdown", (event) => {
+        const target = event.target;
+        if (!customerField.contains(target)) {
+          hideCustomerSuggestions();
+        }
+        if (!zoneField.contains(target)) {
+          hideZoneSuggestions();
+        }
       });
     });
   </script>
