@@ -151,8 +151,8 @@
       }
     }
 
-    function hideCustomerSuggestions() {
-      customerDropdownOpen = false;
+    function hideCustomerSuggestions(closeState = true) {
+      if (closeState) customerDropdownOpen = false;
       customerSuggestions.classList.add("hidden");
       customerSuggestions.innerHTML = "";
     }
@@ -165,7 +165,8 @@
         .slice(0, 8);
 
       if (!filtered.length) {
-        hideCustomerSuggestions();
+        // Keep dropdown state open so typing can repopulate suggestions.
+        hideCustomerSuggestions(false);
         return;
       }
 
@@ -185,8 +186,8 @@
       });
     }
 
-    function hideZoneSuggestions() {
-      zoneDropdownOpen = false;
+    function hideZoneSuggestions(closeState = true) {
+      if (closeState) zoneDropdownOpen = false;
       zoneSuggestions.classList.add("hidden");
       zoneSuggestions.innerHTML = "";
     }
@@ -199,7 +200,8 @@
         .slice(0, 8);
 
       if (!filtered.length) {
-        hideZoneSuggestions();
+        // Keep dropdown state open so typing can repopulate suggestions.
+        hideZoneSuggestions(false);
         return;
       }
 
