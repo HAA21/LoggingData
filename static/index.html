@@ -33,13 +33,15 @@
 
         <div id="customerField" class="relative">
           <label for="customer_name" class="block text-sm font-medium mb-1">Customer Name *</label>
-          <input id="customer_name" name="customer_name" autocomplete="off" required placeholder="Type or choose a customer" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+          <input id="customer_name" name="customer_name" autocomplete="off" required placeholder="Type or choose a customer" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 pr-10" />
+          <button id="customerToggleBtn" type="button" class="absolute right-2 top-[34px] text-slate-500 dark:text-slate-300 px-2 py-1" aria-label="Show customer options">▼</button>
           <div id="customerSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
         </div>
 
         <div id="zoneField" class="relative">
           <label for="zone" class="block text-sm font-medium mb-1">Zone *</label>
-          <input id="zone" name="zone" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
+          <input id="zone" name="zone" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 pr-10" />
+          <button id="zoneToggleBtn" type="button" class="absolute right-2 top-[34px] text-slate-500 dark:text-slate-300 px-2 py-1" aria-label="Show zone options">▼</button>
           <div id="zoneSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
         </div>
 
@@ -80,9 +82,11 @@
     const toast = document.getElementById("toast");
     const customerField = document.getElementById("customerField");
     const customerInput = document.getElementById("customer_name");
+    const customerToggleBtn = document.getElementById("customerToggleBtn");
     const customerSuggestions = document.getElementById("customerSuggestions");
     const zoneField = document.getElementById("zoneField");
     const zoneInput = document.getElementById("zone");
+    const zoneToggleBtn = document.getElementById("zoneToggleBtn");
     const zoneSuggestions = document.getElementById("zoneSuggestions");
     const savingState = document.getElementById("savingState");
     let customers = [];
@@ -179,7 +183,8 @@
       customerSuggestions.classList.remove("hidden");
 
       customerSuggestions.querySelectorAll(".customer-option").forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
           customerInput.value = btn.textContent;
           hideCustomerSuggestions();
         });
@@ -214,7 +219,8 @@
       zoneSuggestions.classList.remove("hidden");
 
       zoneSuggestions.querySelectorAll(".zone-option").forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
           zoneInput.value = btn.textContent;
           hideZoneSuggestions();
         });
@@ -349,7 +355,6 @@
 
       dateInput.addEventListener("change", loadRecentCurrentMonthEntries);
       customerInput.addEventListener("click", () => openCustomerDropdown());
-      customerInput.addEventListener("focus", () => openCustomerDropdown());
       customerInput.addEventListener("input", () => {
         if (customerDropdownOpen) renderCustomerSuggestions(customerInput.value);
       });
@@ -360,7 +365,6 @@
         }
       });
       zoneInput.addEventListener("click", () => openZoneDropdown());
-      zoneInput.addEventListener("focus", () => openZoneDropdown());
       zoneInput.addEventListener("input", () => {
         if (zoneDropdownOpen) renderZoneSuggestions(zoneInput.value);
       });
@@ -370,7 +374,25 @@
           openZoneDropdown();
         }
       });
-      document.addEventListener("click", (event) => {
+      customerToggleBtn.addEventListener("pointerdown", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (customerDropdownOpen) {
+          hideCustomerSuggestions();
+        } else {
+          await openCustomerDropdown();
+        }
+      });
+      zoneToggleBtn.addEventListener("pointerdown", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (zoneDropdownOpen) {
+          hideZoneSuggestions();
+        } else {
+          await openZoneDropdown();
+        }
+      });
+      document.addEventListener("pointerdown", (event) => {
         const target = event.target;
         if (!customerField.contains(target)) {
           hideCustomerSuggestions();
