@@ -135,6 +135,15 @@
       phoneContainer.appendChild(row);
     }
 
+    function setPhoneRows(phoneNumbers) {
+      phoneContainer.innerHTML = "";
+      if (!phoneNumbers || !phoneNumbers.length) {
+        createPhoneRow();
+        return;
+      }
+      phoneNumbers.forEach((phone) => createPhoneRow(phone));
+    }
+
     async function loadCustomers() {
       try {
         const res = await fetch("/api/customers");
@@ -143,6 +152,22 @@
         customers = data.customers || [];
       } catch (error) {
         throw new Error("Could not load customers");
+      }
+    }
+
+    async function loadCustomerPhones(customerName) {
+      const name = (customerName || "").trim();
+      if (!name) {
+        setPhoneRows([]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/customers/phones?customer_name=${encodeURIComponent(name)}`);
+        if (!res.ok) throw new Error("Failed phone lookup");
+        const data = await res.json();
+        setPhoneRows(data.phone_numbers || []);
+      } catch (error) {
+        // Keep existing phone inputs unchanged if lookup fails.
       }
     }
 
@@ -287,12 +312,7 @@
         // Clear form but keep date and phone row
         customerInput.value = "";
         document.getElementById("quantity").value = "";
-        // Clear phone inputs but keep one empty row
-        while (phoneContainer.children.length > 1) {
-          phoneContainer.removeChild(phoneContainer.lastChild);
-        }
-        const firstPhone = phoneContainer.querySelector(".phone-input");
-        if (firstPhone) firstPhone.value = "";
+        setPhoneRows([]);
         
       } catch (error) {
         showToast(error.message || "Could not save entry", true);
@@ -330,6 +350,9 @@
           renderCustomerSuggestions(customerInput.value);
         }, 100);
       }
+    });
+    customerInput.addEventListener("change", () => {
+      loadCustomerPhones(customerInput.value);
     });
     
     customerInput.addEventListener("keydown", (event) => {
