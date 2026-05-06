@@ -23,9 +23,8 @@ logger = logging.getLogger("customer-logger")
 
 
 DATA_PREFIX = "data/"
-HEADERS = ["Date", "Customer Name", "Quantity", "Phone Numbers", "Zone"]
+HEADERS = ["Date", "Customer Name", "Quantity", "Phone Numbers"]
 CUSTOMERS_FILE = "customers.xlsx"
-ZONES_FILE = "zones.xlsx"
 IS_VERCEL_RUNTIME = bool(os.getenv("VERCEL"))
 LOCAL_DATA_DIR = "/tmp/data" if IS_VERCEL_RUNTIME else os.path.join(os.path.dirname(__file__), "data")
 
@@ -33,7 +32,6 @@ LOCAL_DATA_DIR = "/tmp/data" if IS_VERCEL_RUNTIME else os.path.join(os.path.dirn
 class EntryCreate(BaseModel):
     date: str = Field(..., description="ISO date (YYYY-MM-DD)")
     customer_name: str = Field(..., min_length=1)
-    zone: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=0)
     phone_numbers: List[str] = Field(default_factory=list)
 
@@ -46,7 +44,7 @@ class EntryCreate(BaseModel):
             raise ValueError("date must be in YYYY-MM-DD format") from exc
         return value
 
-    @field_validator("customer_name", "zone")
+    @field_validator("customer_name")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         stripped = value.strip()
@@ -213,7 +211,6 @@ class ExcelService:
     def __init__(self, storage: BlobStorage) -> None:
         self.storage = storage
         self._customers_cache: List[str] = []
-        self._zones_cache: List[str] = []
         self._cache_ready = False
         self._cache_lock = Lock()
         self._write_lock = Lock()
@@ -295,20 +292,11 @@ class ExcelService:
 
             try:
                 self._customers_cache = self._read_lookup_values(CUSTOMERS_FILE, "Customer Name")
-                self._zones_cache = self._read_lookup_values(ZONES_FILE, "Zone")
                 self._cache_ready = True
                 return self._customers_cache
             except Exception:
                 logger.exception("Failed to collect customer names")
                 raise
-
-    def get_all_zones(self) -> List[str]:
-        with self._cache_lock:
-            if self._cache_ready:
-                return self._zones_cache
-            # primes both caches from lookup files
-            self.get_all_customers()
-            return self._zones_cache
 
     def _invalidate_cache(self) -> None:
         with self._cache_lock:
@@ -329,14 +317,12 @@ class ExcelService:
                     entry.customer_name,
                     int(entry.quantity),
                     ", ".join(entry.phone_numbers),
-                    entry.zone,
                 ]
             )
 
             updated = self._to_bytes(wb)
             self.storage.upload_file(filename, updated)
             self._upsert_lookup_value(CUSTOMERS_FILE, "Customer Name", entry.customer_name)
-            self._upsert_lookup_value(ZONES_FILE, "Zone", entry.zone)
 
         self._invalidate_cache()
         return filename, month_name, year
@@ -359,7 +345,6 @@ class ExcelService:
                     "customer_name": str(row[1] or ""),
                     "quantity": str(row[2] if row[2] is not None else ""),
                     "phone_numbers": str(row[3] or ""),
-                    "zone": str(row[4] or "") if len(row) > 4 else "",
                 }
             )
         return rows[-limit:][::-1]
@@ -413,15 +398,6 @@ def get_customers() -> Dict[str, List[str]]:
     except Exception as exc:
         logger.exception("Error in /api/customers")
         raise HTTPException(status_code=500, detail="Could not load customers") from exc
-
-
-@app.get("/api/zones")
-def get_zones() -> Dict[str, List[str]]:
-    try:
-        return {"zones": excel_service.get_all_zones()}
-    except Exception as exc:
-        logger.exception("Error in /api/zones")
-        raise HTTPException(status_code=500, detail="Could not load zones") from exc
 
 
 @app.post("/api/entries", response_model=EntryResponse)
