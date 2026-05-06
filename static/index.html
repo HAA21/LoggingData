@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Customer Data Logger</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-    };
-  </script>
+  <script>tailwind.config = { darkMode: "class" };</script>
 </head>
 <body class="bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen">
   <div class="max-w-2xl mx-auto px-4 py-6">
@@ -38,13 +34,6 @@
           <div id="customerSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
         </div>
 
-        <div id="zoneField" class="relative">
-          <label for="zone" class="block text-sm font-medium mb-1">Zone *</label>
-          <input id="zone" name="zone" autocomplete="off" required placeholder="Type or choose a zone" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 pr-10" />
-          <button id="zoneToggleBtn" type="button" class="absolute right-2 top-[34px] text-slate-500 dark:text-slate-300 px-2 py-1" aria-label="Show zone options">▼</button>
-          <div id="zoneSuggestions" class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow"></div>
-        </div>
-
         <div>
           <label for="quantity" class="block text-sm font-medium mb-1">Quantity *</label>
           <input id="quantity" name="quantity" type="number" min="0" step="1" required class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2" />
@@ -62,7 +51,7 @@
       </form>
 
       <div id="savingState" class="hidden mt-3 text-sm text-indigo-600 dark:text-indigo-300">Saving entry...</div>
-      <div id="downloadWrap" class="mt-3">
+      <div class="mt-3">
         <a id="downloadLink" href="#" class="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Download selected month's file</a>
       </div>
     </div>
@@ -76,114 +65,87 @@
   <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-3 rounded-xl text-white shadow-lg"></div>
 
   <script>
-    // DOM Elements
-    const phoneContainer = document.getElementById("phoneContainer");
-    const addPhoneBtn = document.getElementById("addPhoneBtn");
     const form = document.getElementById("entryForm");
-    const toast = document.getElementById("toast");
-    const customerField = document.getElementById("customerField");
+    const dateInput = document.getElementById("date");
     const customerInput = document.getElementById("customer_name");
+    const customerField = document.getElementById("customerField");
     const customerToggleBtn = document.getElementById("customerToggleBtn");
     const customerSuggestions = document.getElementById("customerSuggestions");
-    const zoneField = document.getElementById("zoneField");
-    const zoneInput = document.getElementById("zone");
-    const zoneToggleBtn = document.getElementById("zoneToggleBtn");
-    const zoneSuggestions = document.getElementById("zoneSuggestions");
+    const addPhoneBtn = document.getElementById("addPhoneBtn");
+    const phoneContainer = document.getElementById("phoneContainer");
     const savingState = document.getElementById("savingState");
     const submitBtn = document.getElementById("submitBtn");
-    const downloadWrap = document.getElementById("downloadWrap");
     const downloadLink = document.getElementById("downloadLink");
     const recentEntries = document.getElementById("recentEntries");
-    const dateInput = document.getElementById("date");
+    const toast = document.getElementById("toast");
     const themeToggle = document.getElementById("themeToggle");
 
-    // State variables
     let customers = [];
-    let zones = [];
     let customerDropdownOpen = false;
-    let zoneDropdownOpen = false;
-    let hideCustomerTimeout = null;
-    let hideZoneTimeout = null;
+    let hideTimeout = null;
     let typingTimer = null;
 
-    // Helper Functions
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+    function escapeHtml(v) {
+      if (!v) return "";
+      return v.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
     function showToast(message, isError = false) {
       toast.textContent = message;
       toast.className = `fixed bottom-4 right-4 px-4 py-3 rounded-xl text-white shadow-lg ${isError ? "bg-red-600" : "bg-emerald-600"}`;
       toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 2600);
+      setTimeout(() => toast.classList.add("hidden"), 2400);
     }
 
     function createPhoneRow(value = "") {
       const row = document.createElement("div");
       row.className = "flex gap-2";
-
       const input = document.createElement("input");
       input.type = "text";
-      input.placeholder = "Phone number";
       input.value = value;
+      input.placeholder = "Phone number";
       input.className = "phone-input flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2";
-
+      
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.textContent = "Remove";
-      removeBtn.className = "px-3 py-2 rounded-lg bg-rose-600 text-white text-sm";
+      removeBtn.className = "remove-phone px-3 py-2 rounded-lg bg-rose-600 text-white text-sm";
       removeBtn.addEventListener("click", () => row.remove());
-
+      
       row.appendChild(input);
       row.appendChild(removeBtn);
       phoneContainer.appendChild(row);
     }
 
-    // API Calls
     async function loadCustomers() {
       try {
-        const response = await fetch("/api/customers");
-        if (!response.ok) throw new Error("Failed to load customers");
-        const data = await response.json();
+        const res = await fetch("/api/customers");
+        if (!res.ok) throw new Error("Failed to load customers");
+        const data = await res.json();
         customers = data.customers || [];
-        if (customerDropdownOpen) {
-          renderCustomerSuggestions(customerInput.value);
-        }
       } catch (error) {
-        showToast("Could not load customers", true);
+        throw new Error("Could not load customers");
       }
     }
 
-    async function loadZones() {
-      try {
-        const response = await fetch("/api/zones");
-        if (!response.ok) throw new Error("Failed to load zones");
-        const data = await response.json();
-        zones = data.zones || [];
-        if (zoneDropdownOpen) {
-          renderZoneSuggestions(zoneInput.value);
-        }
-      } catch (error) {
-        showToast("Could not load zones", true);
-      }
-    }
-
-    // Customer Dropdown Functions
     function hideCustomerSuggestions() {
-      if (hideCustomerTimeout) clearTimeout(hideCustomerTimeout);
-      hideCustomerTimeout = setTimeout(() => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
         customerDropdownOpen = false;
         customerSuggestions.classList.add("hidden");
         customerSuggestions.innerHTML = "";
-      }, 150);
+      }, 200);
     }
 
-    function cancelHideCustomer() {
-      if (hideCustomerTimeout) {
-        clearTimeout(hideCustomerTimeout);
-        hideCustomerTimeout = null;
+    function cancelHide() {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
       }
     }
 
@@ -191,112 +153,51 @@
       if (!customerDropdownOpen) return;
       
       const needle = query.trim().toLowerCase();
-      const filtered = customers
-        .filter((name) => !needle || name.toLowerCase().includes(needle))
-        .slice(0, 8);
-
+      const filtered = customers.filter((n) => !needle || n.toLowerCase().includes(needle)).slice(0, 8);
+      
       if (!filtered.length) {
         customerSuggestions.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">No matching customers</div>';
         customerSuggestions.classList.remove("hidden");
         return;
       }
-
+      
       customerSuggestions.innerHTML = filtered
-        .map(
-          (name) =>
-            `<button type="button" class="customer-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">${escapeHtml(name)}</button>`
-        )
+        .map((name) => `<button type="button" class="customer-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">${escapeHtml(name)}</button>`)
         .join("");
       customerSuggestions.classList.remove("hidden");
-
+      
+      // Use mousedown instead of pointerdown for reliability
       customerSuggestions.querySelectorAll(".customer-option").forEach((btn) => {
         btn.addEventListener("mousedown", (event) => {
           event.preventDefault();
           event.stopPropagation();
           customerInput.value = btn.textContent;
           hideCustomerSuggestions();
+          // Trigger change/input events
           customerInput.dispatchEvent(new Event('input', { bubbles: true }));
           customerInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
         
-        btn.addEventListener("mouseenter", () => cancelHideCustomer());
+        btn.addEventListener("mouseenter", () => cancelHide());
         btn.addEventListener("mouseleave", () => hideCustomerSuggestions());
       });
     }
 
     async function openCustomerDropdown() {
-      cancelHideCustomer();
+      cancelHide();
       customerDropdownOpen = true;
       if (!customers.length) {
-        await loadCustomers();
+        try {
+          await loadCustomers();
+        } catch (error) {
+          showToast("Could not load customers", true);
+          hideCustomerSuggestions();
+          return;
+        }
       }
       renderCustomerSuggestions(customerInput.value);
     }
 
-    // Zone Dropdown Functions
-    function hideZoneSuggestions() {
-      if (hideZoneTimeout) clearTimeout(hideZoneTimeout);
-      hideZoneTimeout = setTimeout(() => {
-        zoneDropdownOpen = false;
-        zoneSuggestions.classList.add("hidden");
-        zoneSuggestions.innerHTML = "";
-      }, 150);
-    }
-
-    function cancelHideZone() {
-      if (hideZoneTimeout) {
-        clearTimeout(hideZoneTimeout);
-        hideZoneTimeout = null;
-      }
-    }
-
-    function renderZoneSuggestions(query = "") {
-      if (!zoneDropdownOpen) return;
-      
-      const needle = query.trim().toLowerCase();
-      const filtered = zones
-        .filter((name) => !needle || name.toLowerCase().includes(needle))
-        .slice(0, 8);
-
-      if (!filtered.length) {
-        zoneSuggestions.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">No matching zones</div>';
-        zoneSuggestions.classList.remove("hidden");
-        return;
-      }
-
-      zoneSuggestions.innerHTML = filtered
-        .map(
-          (name) =>
-            `<button type="button" class="zone-option block w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">${escapeHtml(name)}</button>`
-        )
-        .join("");
-      zoneSuggestions.classList.remove("hidden");
-
-      zoneSuggestions.querySelectorAll(".zone-option").forEach((btn) => {
-        btn.addEventListener("mousedown", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          zoneInput.value = btn.textContent;
-          hideZoneSuggestions();
-          zoneInput.dispatchEvent(new Event('input', { bubbles: true }));
-          zoneInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        
-        btn.addEventListener("mouseenter", () => cancelHideZone());
-        btn.addEventListener("mouseleave", () => hideZoneSuggestions());
-      });
-    }
-
-    async function openZoneDropdown() {
-      cancelHideZone();
-      zoneDropdownOpen = true;
-      if (!zones.length) {
-        await loadZones();
-      }
-      renderZoneSuggestions(zoneInput.value);
-    }
-
-    // Recent Entries
     async function loadRecentCurrentMonthEntries() {
       const selected = dateInput.value ? new Date(dateInput.value) : new Date();
       const monthName = selected.toLocaleString("en-US", { month: "long" });
@@ -305,39 +206,30 @@
         const response = await fetch(`/api/entries/recent?month=${encodeURIComponent(monthName)}&year=${year}`);
         if (!response.ok) throw new Error("Failed recent entries");
         const data = await response.json();
-        renderRecentEntries(data.entries || []);
+        const entries = data.entries || [];
+        if (!entries.length) {
+          recentEntries.innerHTML = '<p class="text-slate-500">No entries for this month yet.</p>';
+          return;
+        }
+        recentEntries.innerHTML = entries.map((entry) => `
+          <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+            <div><strong>${escapeHtml(entry.date)}</strong> - ${escapeHtml(entry.customer_name)}</div>
+            <div>Quantity: ${entry.quantity}</div>
+            <div>Phones: ${escapeHtml(entry.phone_numbers || "-")}</div>
+          </div>`).join("");
       } catch (error) {
         recentEntries.innerHTML = '<p class="text-rose-500">Could not load recent entries.</p>';
       }
     }
 
-    function renderRecentEntries(entries) {
-      if (!entries.length) {
-        recentEntries.innerHTML = '<p class="text-slate-500">No entries for this month yet.</p>';
-        return;
-      }
-
-      recentEntries.innerHTML = entries.map((entry) => `
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-          <div><strong>${escapeHtml(entry.date)}</strong> - ${escapeHtml(entry.customer_name)}</div>
-          <div>Zone: ${escapeHtml(entry.zone || "-")}</div>
-          <div>Quantity: ${entry.quantity}</div>
-          <div>Phones: ${escapeHtml(entry.phone_numbers || "-")}</div>
-        </div>
-      `).join("");
-    }
-
     function currentMonthSlug(dateValue) {
       const d = new Date(dateValue);
-      const month = d.toLocaleString("en-US", { month: "long" }).toLowerCase();
-      const year = d.getFullYear();
-      return `${month}_${year}`;
+      return `${d.toLocaleString("en-US", { month: "long" }).toLowerCase()}_${d.getFullYear()}`;
     }
 
-    function updateDownloadLink(dateValue) {
-      if (!dateValue) return;
-      const slug = currentMonthSlug(dateValue);
-      downloadLink.href = `/api/download/${slug}`;
+    function updateDownloadLink() {
+      if (!dateInput.value) return;
+      downloadLink.href = `/api/download/${currentMonthSlug(dateInput.value)}`;
     }
 
     function setLoading(loading) {
@@ -346,38 +238,49 @@
       submitBtn.textContent = loading ? "Saving..." : "Save Entry";
     }
 
-    // Form Submission
+    // Form submission
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const date = dateInput.value;
       const customer_name = customerInput.value.trim();
-      const zone = zoneInput.value.trim();
       const quantity = parseInt(document.getElementById("quantity").value, 10);
-      const phone_numbers = Array.from(document.querySelectorAll(".phone-input"))
-        .map((input) => input.value.trim())
-        .filter(Boolean);
-
-      if (!date || !customer_name || !zone || Number.isNaN(quantity)) {
+      const phone_numbers = Array.from(document.querySelectorAll(".phone-input")).map((x) => x.value.trim()).filter(Boolean);
+      
+      if (!date || !customer_name || Number.isNaN(quantity)) {
         showToast("Please fill all required fields", true);
         return;
       }
-
+      
       try {
         setLoading(true);
         const response = await fetch("/api/entries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date, customer_name, zone, quantity, phone_numbers }),
+          body: JSON.stringify({ date, customer_name, quantity, phone_numbers }),
         });
         const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.detail || "Failed to save");
-        }
-
+        if (!response.ok) throw new Error(data.detail || "Failed to save");
         showToast("Entry saved successfully");
-        updateDownloadLink(date);
-
-        await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
+        
+        // Refresh data
+        try {
+          await loadCustomers();
+        } catch (e) {
+          // Ignore refresh failure
+        }
+        await loadRecentCurrentMonthEntries();
+        updateDownloadLink();
+        
+        // Clear form but keep date and phone row
+        customerInput.value = "";
+        document.getElementById("quantity").value = "";
+        // Clear phone inputs but keep one empty row
+        while (phoneContainer.children.length > 1) {
+          phoneContainer.removeChild(phoneContainer.lastChild);
+        }
+        const firstPhone = phoneContainer.querySelector(".phone-input");
+        if (firstPhone) firstPhone.value = "";
+        
       } catch (error) {
         showToast(error.message || "Could not save entry", true);
       } finally {
@@ -385,26 +288,23 @@
       }
     });
 
-    // Phone numbers
     addPhoneBtn.addEventListener("click", () => createPhoneRow());
 
-    // Theme toggle
     themeToggle.addEventListener("change", () => {
-      const html = document.documentElement;
       const useDark = themeToggle.checked;
-      html.classList.toggle("dark", useDark);
+      document.documentElement.classList.toggle("dark", useDark);
       localStorage.setItem("theme", useDark ? "dark" : "light");
     });
 
-    // Event Listeners for Customer Field
+    // Customer dropdown event listeners
     customerInput.addEventListener("focus", () => {
-      cancelHideCustomer();
+      cancelHide();
       openCustomerDropdown();
     });
     
     customerInput.addEventListener("click", (event) => {
       event.stopPropagation();
-      cancelHideCustomer();
+      cancelHide();
       if (!customerDropdownOpen) {
         openCustomerDropdown();
       }
@@ -438,104 +338,51 @@
       }
     });
 
-    // Event Listeners for Zone Field
-    zoneInput.addEventListener("focus", () => {
-      cancelHideZone();
-      openZoneDropdown();
-    });
-    
-    zoneInput.addEventListener("click", (event) => {
-      event.stopPropagation();
-      cancelHideZone();
-      if (!zoneDropdownOpen) {
-        openZoneDropdown();
-      }
-    });
-    
-    zoneInput.addEventListener("input", () => {
-      if (typingTimer) clearTimeout(typingTimer);
-      if (zoneDropdownOpen) {
-        typingTimer = setTimeout(() => {
-          renderZoneSuggestions(zoneInput.value);
-        }, 100);
-      }
-    });
-    
-    zoneInput.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        openZoneDropdown();
-      } else if (event.key === "Escape" && zoneDropdownOpen) {
-        hideZoneSuggestions();
-      }
-    });
-
-    zoneToggleBtn.addEventListener("mousedown", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (zoneDropdownOpen) {
-        hideZoneSuggestions();
-      } else {
-        await openZoneDropdown();
-      }
-    });
-
-    // Global click handler to close dropdowns
+    // Global click handler with exceptions
     document.addEventListener("mousedown", (event) => {
       const target = event.target;
       
-      // Customer dropdown
+      // Don't close if clicking on suggestion items or toggle button
+      if (target.closest('.customer-option') || target.closest('#customerToggleBtn')) {
+        return;
+      }
+      
       if (!customerField.contains(target)) {
         hideCustomerSuggestions();
       } else {
-        cancelHideCustomer();
-      }
-      
-      // Zone dropdown
-      if (!zoneField.contains(target)) {
-        hideZoneSuggestions();
-      } else {
-        cancelHideZone();
+        cancelHide();
       }
     });
 
-    // Prevent scroll from closing dropdowns
+    // Prevent scroll from closing dropdown
     customerSuggestions.addEventListener("wheel", (e) => {
       e.stopPropagation();
     });
-    
-    zoneSuggestions.addEventListener("wheel", (e) => {
-      e.stopPropagation();
-    });
 
-    // Initialize on page load
+    // Initialize
     window.addEventListener("DOMContentLoaded", async () => {
-      // Set default date
       dateInput.value = new Date().toISOString().split("T")[0];
-
-      // Load theme preference
+      
       const savedTheme = localStorage.getItem("theme");
       if (savedTheme === "dark") {
         document.documentElement.classList.add("dark");
         themeToggle.checked = true;
-      } else {
-        themeToggle.checked = false;
       }
-
-      // Load data
-      await Promise.all([loadCustomers(), loadZones(), loadRecentCurrentMonthEntries()]);
       
-      // Create initial phone row
+      try {
+        await loadCustomers();
+      } catch (error) {
+        showToast("Could not load customers", true);
+      }
+      
+      await loadRecentCurrentMonthEntries();
       createPhoneRow();
-
-      // Date change listener
+      updateDownloadLink();
+      
       dateInput.addEventListener("change", () => {
-        updateDownloadLink(dateInput.value);
+        updateDownloadLink();
         loadRecentCurrentMonthEntries();
       });
-
-      // Initialize month download link
-      updateDownloadLink(dateInput.value);
     });
   </script>
 </body>
