@@ -298,6 +298,42 @@ class ExcelService:
                 logger.exception("Failed to collect customer names")
                 raise
 
+    def get_customer_phone_numbers(self, customer_name: str) -> List[str]:
+        target = customer_name.strip().lower()
+        if not target:
+            return []
+
+        phones: List[str] = []
+        seen = set()
+        try:
+            for filename in self.storage.list_excel_files():
+                # Skip lookup file and read only monthly workbooks.
+                if filename.lower() == CUSTOMERS_FILE.lower():
+                    continue
+                file_bytes = self.storage.download_file(filename)
+                if not file_bytes:
+                    continue
+                wb = self._load_workbook(file_bytes)
+                ws = wb.active
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or len(row) < 4:
+                        continue
+                    row_customer = str(row[1] or "").strip().lower()
+                    if row_customer != target:
+                        continue
+                    raw = str(row[3] or "").strip()
+                    if not raw:
+                        continue
+                    for phone in [p.strip() for p in raw.split(",") if p.strip()]:
+                        key = phone.lower()
+                        if key not in seen:
+                            seen.add(key)
+                            phones.append(phone)
+            return phones
+        except Exception:
+            logger.exception("Failed to load phone numbers for customer: %s", customer_name)
+            raise
+
     def _invalidate_cache(self) -> None:
         with self._cache_lock:
             self._cache_ready = False
@@ -398,6 +434,15 @@ def get_customers() -> Dict[str, List[str]]:
     except Exception as exc:
         logger.exception("Error in /api/customers")
         raise HTTPException(status_code=500, detail="Could not load customers") from exc
+
+
+@app.get("/api/customers/phones")
+def get_customer_phones(customer_name: str) -> Dict[str, List[str]]:
+    try:
+        return {"phone_numbers": excel_service.get_customer_phone_numbers(customer_name)}
+    except Exception as exc:
+        logger.exception("Error in /api/customers/phones")
+        raise HTTPException(status_code=500, detail="Could not load customer phone numbers") from exc
 
 
 @app.post("/api/entries", response_model=EntryResponse)
